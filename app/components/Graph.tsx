@@ -50,7 +50,6 @@ function Graph() {
   const { nodes: nodesProp, deps } = useStore()();
   const graphRef = useRef(null);
   const [graphWidth, setGraphWidth] = useState("0");
-  console.log("🚀 -> Graph -> graphWidth:", graphWidth);
   const nodes: d3Node[] = Array.from(nodesProp).map((node) => ({
     id: node.id,
     label: node.name,
@@ -90,7 +89,7 @@ function Graph() {
           }}
           width={graphWidth}
           height="1200"
-          animate={1000}
+          animate={200}
           shape="rect"
           fitBoundaries
           zoomable

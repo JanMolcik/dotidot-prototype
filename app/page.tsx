@@ -158,7 +158,7 @@ export default async function Home() {
   const { nodes, deps } = processData(apiData);
 
   return (
-    <main className="flex min-h-screen flex-col items-start justify-between">
+    <main className="w-full flex min-h-screen flex-col items-start justify-between">
       <StoreProvider data={apiData} nodes={nodes} deps={deps}>
         <Graph />
       </StoreProvider>
