@@ -99,3 +99,9 @@ export interface Data {
     variables: Variables;
   };
 }
+
+export interface NamedId {
+  name: string;
+  id: string;
+  __typename: string;
+}

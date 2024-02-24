@@ -1,3 +1,4 @@
+import { setTimeout } from "timers/promises";
 import { getAdditionalSources } from "./additional-sources";
 import { getCampaignSettings } from "./campaign";
 import { getFeedExports } from "./feed";
@@ -9,6 +10,8 @@ export const getData = async (): Promise<Data> => {
   const additionalSources = await getAdditionalSources();
   const campaignSettings = await getCampaignSettings();
   const feedExports = await getFeedExports();
+
+  await setTimeout(500);
 
   return {
     data: {
