@@ -2,7 +2,8 @@
 
 import classNames from "classnames";
 import DagreGraph from "dagre-d3-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { useStore } from "../store/StoreProvider";
 
@@ -48,22 +49,34 @@ const getClassName = (type: string) => {
 
 function Graph() {
   const { nodes: nodesProp, deps } = useStore()();
+  const { push } = useRouter();
   const graphRef = useRef(null);
   const [graphWidth, setGraphWidth] = useState("0");
-  const nodes: d3Node[] = Array.from(nodesProp).map((node) => ({
-    id: node.id,
-    label: node.name,
-    labelType: "string",
-    class: getClassName(node.__typename),
-  }));
 
-  const links: d3Link[] = nodes.flatMap(
-    (node) =>
-      deps.get(node.label)?.map((target) => ({
-        source: node.id,
-        target: target.id,
-      })) ?? []
+  const nodes: d3Node[] = useMemo(
+    () =>
+      nodesProp.map((node) => ({
+        id: node.id,
+        label: node.name,
+        labelType: "string",
+        class: getClassName(node.__typename),
+      })),
+    [nodesProp]
   );
+
+  const links: d3Link[] = useMemo(
+    () =>
+      nodes.flatMap(
+        (node) =>
+          deps.get(node.label)?.map((target) => ({
+            source: node.id,
+            target: target.id,
+          })) ?? []
+      ),
+    [nodes, deps]
+  );
+
+  // Resizing graph on screen change
   useEffect(() => {
     const updateSize = () => {
       if (!graphRef.current) return;
@@ -75,10 +88,10 @@ function Graph() {
   }, []);
 
   return (
-    // Not really stable implementation of d3-dagre
     <div className="flex w-full" ref={graphRef}>
+      {/* Not really stable implementation of d3-dagre -> adding fallback */}
       <ErrorBoundary
-        fallback={<div className="mx-auto">Something went wrong</div>}
+        fallback={<div className="mx-auto">Unable to render graph</div>}
       >
         <DagreGraph
           nodes={nodes}
@@ -94,9 +107,20 @@ function Graph() {
           fitBoundaries
           zoomable
           onNodeClick={(e: {
-            d3node: { class: string; label: string };
-            original: unknown;
-          }) => console.log(e)}
+            d3node: {
+              class: string;
+              label: string;
+              elem: unknown;
+            };
+            original: d3Node;
+          }) => {
+            let path: string = e.original.id;
+            if (path.includes("/")) {
+              const splitPath = path.split("/");
+              path = splitPath[splitPath.length - 1];
+            }
+            push(`/detail/${path}`);
+          }}
           onRelationshipClick={(e: unknown) => console.log(e)}
         />
       </ErrorBoundary>

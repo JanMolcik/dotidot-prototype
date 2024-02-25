@@ -1,22 +1,30 @@
 "use client";
 
-import { useState, createContext, useContext } from "react";
-import { create } from "zustand";
 import { Data, NamedId } from "@/api/types";
+import { createContext, useContext, useState } from "react";
+import { create } from "zustand";
 
 const createStore = (
-  data: Data,
+  data: Data | undefined,
   nodes: Set<NamedId>,
   deps: Map<string, NamedId[]>
 ) =>
   create<{
-    data: Data;
-    nodes: Set<NamedId>;
+    data: Data | undefined;
+    originalNodes: Set<NamedId>;
+    nodes: NamedId[];
+    setNodes: (nodes: Set<NamedId>) => void;
+    originalDeps: Map<string, NamedId[]>;
     deps: Map<string, NamedId[]>;
     setData: (data: Data) => void;
   }>((set) => ({
     data,
-    nodes,
+    originalNodes: nodes,
+    nodes: Array.from(nodes),
+    setNodes(nodes: Set<NamedId>) {
+      set({ nodes: Array.from(nodes) });
+    },
+    originalDeps: deps,
     deps,
     setData(data: Data) {
       set({ data });
@@ -37,7 +45,7 @@ const StoreProvider = ({
   deps,
   children,
 }: {
-  data: Data;
+  data: Data | undefined;
   nodes: Set<NamedId>;
   deps: Map<string, NamedId[]>;
   children: React.ReactNode;

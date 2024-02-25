@@ -21,6 +21,7 @@ const links: NavigationLink[] = [
 
 function Navigation() {
   const pathname = usePathname();
+
   return (
     <div className="bg-slate-400">
       <div className="flex flex-col py-4">
@@ -28,8 +29,11 @@ function Navigation() {
           <Link
             key={link.href}
             className={classNames(
-              "w-full px-8 py-1 font-medium text-lg",
-              pathname === link.href ? "bg-white text-slate-900" : "text-white"
+              "w-full px-6 py-1 font-medium text-lg",
+              pathname === link.href ||
+                [pathname, link.href].every((path) => path.includes("detail"))
+                ? "bg-white text-slate-900"
+                : "text-white"
             )}
             href={link.href}
           >
