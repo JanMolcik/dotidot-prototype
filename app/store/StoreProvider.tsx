@@ -6,23 +6,23 @@ import { create } from "zustand";
 
 const createStore = (
   data: Data | undefined,
-  nodes: Set<NamedId>,
+  nodes: Map<string, NamedId>,
   deps: Map<string, NamedId[]>
 ) =>
   create<{
     data: Data | undefined;
-    originalNodes: Set<NamedId>;
+    originalNodes: Map<string, NamedId>;
     nodes: NamedId[];
-    setNodes: (nodes: Set<NamedId>) => void;
+    setNodes: (nodes: Map<string, NamedId>) => void;
     originalDeps: Map<string, NamedId[]>;
     deps: Map<string, NamedId[]>;
     setData: (data: Data) => void;
   }>((set) => ({
     data,
     originalNodes: nodes,
-    nodes: Array.from(nodes),
-    setNodes(nodes: Set<NamedId>) {
-      set({ nodes: Array.from(nodes) });
+    nodes: Array.from(nodes).map(([, value]) => value),
+    setNodes(nodes: Map<string, NamedId>) {
+      set({ nodes: Array.from(nodes.values()) });
     },
     originalDeps: deps,
     deps,
@@ -46,7 +46,7 @@ const StoreProvider = ({
   children,
 }: {
   data: Data | undefined;
-  nodes: Set<NamedId>;
+  nodes: Map<string, NamedId>;
   deps: Map<string, NamedId[]>;
   children: React.ReactNode;
 }) => {

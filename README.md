@@ -1,3 +1,13 @@
+## Install
+To install this application locally, please, use `npm install --legacy-peer-deps` because the graph library `dagre-d3-react` uses outdated peer dependencies 
+```json
+"peerDependencies": {
+  "react": "16.9.0",
+  "react-dom": "16.9.0"
+}
+```
+and Next.js 14 requires node >= 18.
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started

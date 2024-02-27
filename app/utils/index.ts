@@ -1,23 +1,140 @@
-import { Data, NamedId } from "@/api/types";
+import { Data, NamedId, UnknownEntity, Variable } from "@/api/types";
 
 /**
  * Helper function to iterate array and set Map entries
  * @param id Id of node
  * @param map Map in which new node dependency will be added
- * @param rawArray Array of placeholder which should be added
+ * @param vriables
+ * @param placeholderNames Array of placeholder which should be added
  * as dependencies
  */
 const fillDependencies = (
   id: NamedId,
   map: Map<string, NamedId[]>,
-  rawArray?: string[]
+  variables: Map<string, Variable>,
+  ...placeholderNames: string[]
 ) => {
-  rawArray?.forEach((placeholder) => {
+  placeholderNames?.forEach((placeholderName) => {
+    const variable = variables.get(placeholderName);
+    if (!variable) return;
     // Init empty placeholder in the Map
-    if (!map.has(placeholder)) {
-      map.set(placeholder, []);
+    if (!map.has(variable.id)) {
+      map.set(variable.id, []);
     }
-    map.get(placeholder)?.push(id);
+    map.get(variable.id)?.push(id);
+  });
+};
+
+/**
+ * Recursive function to expand data properties and search for dependencies
+ * @param entity Unknown entity to inspect
+ * @param nodes Map of nodes for Graph to store new node into
+ * @param dependencies Map of dependencies (by id)
+ * @param variables Map of variables by placeholderName
+ * @param prevId In case of pairing campaign setting to each sub-settings (keywords, adwords etc.)
+ * @returns void
+ */
+
+const recursivelyFillDependencies = (
+  entity: Partial<UnknownEntity>,
+  nodes: Map<string, NamedId>,
+  dependencies: Map<string, NamedId[]>,
+  variables: Map<string, Variable>,
+  prevId?: string
+) => {
+  if (!entity) return;
+
+  const {
+    getConditionsPlaceholders,
+    getPlaceholdersWithoutConditions,
+    mappingField,
+    mappingFields,
+    parentId,
+    id,
+    name,
+    __typename,
+  } = entity;
+
+  if (!id) return;
+
+  let node = {
+    id: id?.toString(),
+    name,
+    __typename,
+  } as NamedId;
+
+  if (!node.name) {
+    if (__typename === "AdwordsSetting") {
+      node.name = "Adwords setting";
+    } else {
+      node.name = `Entity #${id}`;
+    }
+  }
+
+  if (nodes.has(node.id)) {
+    node = { ...node, ...nodes.get(node.id) };
+  }
+
+  nodes.set(node.id, node);
+
+  // Pair campaing setting (prevId) with current node
+  if (prevId) {
+    if (!dependencies.has(prevId)) {
+      dependencies.set(prevId, []);
+    }
+    dependencies.get(prevId)?.push(node);
+  }
+
+  // Store dependency for adwords
+  if (parentId) {
+    const parentIdStr = parentId?.toString();
+    if (!dependencies.has(parentIdStr)) {
+      dependencies.set(parentIdStr, []);
+    }
+    dependencies.get(parentIdStr)?.push(node);
+  }
+
+  // Inspect and store dependecies in arrays of deps
+  [
+    getConditionsPlaceholders,
+    getPlaceholdersWithoutConditions,
+    mappingFields,
+    mappingField ? [mappingField] : [],
+  ].forEach((placeholderNameArray) => {
+    if (!placeholderNameArray) return;
+    fillDependencies(node, dependencies, variables, ...placeholderNameArray);
+  });
+
+  // Recursively search in all objects and arrays in properties of current entity
+  Object.values(entity).forEach((value) => {
+    // We don't care about other types than object or array
+    if (!value || typeof value !== "object") return;
+
+    // Check if value is array
+    if (value?.length || value?.length === 0) {
+      value.forEach((obj) => {
+        // We don't care about non-expandable props
+        if (typeof obj !== "object") return;
+
+        recursivelyFillDependencies(
+          obj as Partial<UnknownEntity>,
+          nodes,
+          dependencies,
+          variables,
+          entity.__typename === "CampaignSetting"
+            ? entity.id?.toString()
+            : undefined
+        );
+      });
+    }
+
+    // Value is object
+    recursivelyFillDependencies(
+      value as unknown as Partial<UnknownEntity>,
+      nodes,
+      dependencies,
+      variables
+    );
   });
 };
 
@@ -28,140 +145,55 @@ const fillDependencies = (
  * @param data Raw data from api endpoint
  * @returns Nodes and dependencies to be used to render graph
  */
-export const processData = (data?: Data) => {
-  const nodes: Set<NamedId> = new Set();
+export const processData = (dataProp?: Data) => {
+  const nodes: Map<string, NamedId> = new Map();
+  const variables: Map<string, Variable> = new Map();
   const dependencies = new Map<string, NamedId[]>();
 
-  if (!data) return { nodes, deps: dependencies };
+  if (!dataProp) return { nodes, deps: dependencies };
 
-  const {
-    data: {
-      variables: { variables },
-      additionalSources: { additionalSources },
-      campaignSettings: { campaignSettings },
-      feedExports: { feedExports },
-    },
-  } = data;
+  const { data } = dataProp;
 
-  variables.forEach(
-    ({
-      getConditionsPlaceholders,
-      getPlaceholdersWithoutConditions,
-      placeholderName,
-      id,
-      __typename,
-      additionalSource,
-    }) => {
-      const node = { id, name: placeholderName, __typename };
-      nodes.add(node);
+  const entities = Object.entries(data);
 
-      [getConditionsPlaceholders, getPlaceholdersWithoutConditions].forEach(
-        (arr) => fillDependencies(node, dependencies, arr)
-      );
+  // Firstly let's map variables by their placeholderName
+  // so in the next mapping process, we can access a variable
+  // by their name with O(1) complexity instead of searching for it
+  // in array by their name just to get their id
+  entities.forEach(([colName, collection]) => {
+    collection[colName]?.forEach((unknownEntity) => {
+      const entity = unknownEntity as Partial<UnknownEntity>;
+      if (!entity || entity.__typename !== "DataSourceVariable") return;
+      const variable = entity as unknown as Variable;
+      variables.set(variable.placeholderName, variable);
 
-      if (!additionalSource?.id) return;
+      if (variable.additionalSource) {
+        const sourceId = variable.additionalSource.id.toString();
 
-      const source = additionalSources.find(
-        (source) => source.id === additionalSource.id
-      );
+        if (!dependencies.has(sourceId)) {
+          dependencies.set(sourceId, []);
+        }
 
-      if (!source?.name) return;
-
-      // Add additional source as dependency
-      fillDependencies(node, dependencies, [source.name]);
-    }
-  );
-
-  additionalSources.forEach(
-    ({ mappingField, mappingFields, id, name, __typename }) => {
-      const node = {
-        id: id.toString(),
-        name: name ?? `Additional source #${id}`,
-        __typename,
-      };
-      nodes.add(node);
-      fillDependencies(node, dependencies, mappingFields);
-      if (!mappingField) return;
-
-      if (!dependencies.has(mappingField)) {
-        dependencies.set(mappingField, []);
+        dependencies.get(sourceId)?.push({
+          id: variable.id,
+          __typename: variable.__typename,
+          name: variable.name,
+        });
       }
+    });
+  });
 
-      dependencies?.get(mappingField)?.push(node);
-    }
-  );
-
-  feedExports.forEach(
-    ({
-      getConditionsPlaceholders,
-      getPlaceholdersWithoutConditions,
-      id,
-      name,
-      __typename,
-    }) => {
-      const node = { id: id.toString(), name, __typename };
-      nodes.add(node);
-      [getConditionsPlaceholders, getPlaceholdersWithoutConditions].forEach(
-        (arr) => fillDependencies(node, dependencies, arr)
+  // Now let's map dependencies using id's for all entities
+  entities.forEach(([colName, collection]) => {
+    collection[colName]?.forEach((unknownEntity: unknown) => {
+      recursivelyFillDependencies(
+        unknownEntity as Partial<UnknownEntity>,
+        nodes,
+        dependencies,
+        variables
       );
-    }
-  );
-
-  campaignSettings.forEach(
-    ({
-      keywordSettings,
-      adwordsSetting,
-      baseAdtexts,
-      bidRules,
-      getConditionsPlaceholders,
-      getPlaceholdersWithoutConditions,
-      id,
-      name,
-      __typename,
-    }) => {
-      const campaignNode = { id: id.toString(), name, __typename };
-      nodes.add(campaignNode);
-      [getConditionsPlaceholders, getPlaceholdersWithoutConditions].forEach(
-        (arr) => fillDependencies(campaignNode, dependencies, arr)
-      );
-
-      [keywordSettings, baseAdtexts, bidRules].forEach((setting) =>
-        setting.forEach(
-          ({
-            getConditionsPlaceholders,
-            getPlaceholdersWithoutConditions,
-            id,
-            name,
-            __typename,
-          }) => {
-            const innerNode = { id: id.toString(), name, __typename };
-            // Add each campaign's sub-setting as dependency of the campaign
-            fillDependencies(innerNode, dependencies, [campaignNode.name]);
-            nodes.add(innerNode);
-            [
-              getConditionsPlaceholders,
-              getPlaceholdersWithoutConditions,
-            ].forEach((arr) => fillDependencies(innerNode, dependencies, arr));
-          }
-        )
-      );
-
-      // Adwords setting object
-      const adwordNode = {
-        id: adwordsSetting.id.toString(),
-        name: "Adwords setting",
-        __typename: adwordsSetting.__typename,
-      };
-      nodes.add(adwordNode);
-      // Add to dependency of the campaign too
-      fillDependencies(adwordNode, dependencies, [campaignNode.name]);
-
-      [
-        adwordsSetting.getConditionsPlaceholders,
-        adwordsSetting.getPlaceholdersWithoutConditions,
-      ].forEach((arr) => fillDependencies(adwordNode, dependencies, arr));
-    }
-  );
+    });
+  });
 
   return { nodes, deps: dependencies };
 };

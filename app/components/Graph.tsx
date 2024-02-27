@@ -52,6 +52,7 @@ function Graph() {
   const { push } = useRouter();
   const graphRef = useRef(null);
   const [graphWidth, setGraphWidth] = useState("0");
+  const [graphHeight, setGraphHeight] = useState("0");
 
   const nodes: d3Node[] = useMemo(
     () =>
@@ -68,7 +69,7 @@ function Graph() {
     () =>
       nodes.flatMap(
         (node) =>
-          deps.get(node.label)?.map((target) => ({
+          deps.get(node.id)?.map((target) => ({
             source: node.id,
             target: target.id,
           })) ?? []
@@ -82,13 +83,15 @@ function Graph() {
       if (!graphRef.current) return;
       // @ts-expect-error Does not exist on type never
       setGraphWidth(graphRef.current.offsetWidth);
+      // @ts-expect-error Does not exist on type never
+      setGraphHeight(graphRef.current.offsetHeight);
     };
     updateSize();
     window.addEventListener("resize", updateSize);
   }, []);
 
   return (
-    <div className="flex w-full" ref={graphRef}>
+    <div className="flex w-full h-[calc(100%-68px)]" ref={graphRef}>
       {/* Not really stable implementation of d3-dagre -> adding fallback */}
       <ErrorBoundary
         fallback={<div className="mx-auto">Unable to render graph</div>}
@@ -101,7 +104,7 @@ function Graph() {
             minlen: 2,
           }}
           width={graphWidth}
-          height="1200"
+          height={graphHeight}
           animate={200}
           shape="rect"
           fitBoundaries

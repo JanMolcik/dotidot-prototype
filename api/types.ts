@@ -1,7 +1,45 @@
+export type Typename =
+  | "DataSourceVariable"
+  | "Collection"
+  | "ImageGen"
+  | "AdditionalSource"
+  | "AdwordsSetting"
+  | "BaseAdtext"
+  | "BidRule"
+  | "CampaignSetting"
+  | "FeedExport";
+
+export interface EntityPlaceholders {
+  id: number | string;
+  name: string;
+  getPlaceholdersWithoutConditions: string[];
+  getConditionsPlaceholders: string[];
+  mappingField: string;
+  mappingFields: string[];
+  parentId: number;
+  __typename: Typename;
+}
+
+export interface NestedEntityObjectPlaceholders {
+  [key: string]: EntityPlaceholders;
+}
+
+export interface NestedEntityArrayPlaceholders {
+  [key: string]: EntityPlaceholders[];
+}
+
+export type UnknownEntity = EntityPlaceholders &
+  NestedEntityArrayPlaceholders &
+  NestedEntityObjectPlaceholders;
+
 export interface Placeholders {
   getPlaceholdersWithoutConditions?: string[];
   getConditionsPlaceholders?: string[];
 }
+
+export type Collection = Record<string, UnknownEntity[]> & {
+  __typename: "Collection";
+};
 
 export interface ImageGen extends Placeholders {
   __typename: "ImageGen";
@@ -92,12 +130,7 @@ export interface FeedExports {
 }
 
 export interface Data {
-  data: {
-    feedExports: FeedExports;
-    campaignSettings: CampaignSettings;
-    additionalSources: AdditionalSources;
-    variables: Variables;
-  };
+  data: Record<string, Collection>;
 }
 
 export interface NamedId {

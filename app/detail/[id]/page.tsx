@@ -1,4 +1,5 @@
 import { getData } from "@/api";
+import { Variable } from "@/api/types";
 
 const findHelper = (id: string) => (source: { id: number | string }) =>
   source.id.toString() === id;
@@ -25,7 +26,7 @@ async function DetailPage({ params: { id } }: { params: { id: string } }) {
 
   const entity =
     variables.find((variable) => {
-      const varSplit = variable.id.split("/");
+      const varSplit = (variable as unknown as Variable).id.split("/");
       return varSplit[varSplit.length - 1] === id;
     }) ??
     additionalSources.find(findFun) ??
@@ -48,7 +49,6 @@ async function DetailPage({ params: { id } }: { params: { id: string } }) {
           <h1 className="text-2xl font-medium">
             Detail of{" "}
             <span className="font-bold">
-              {/* @ts-expect-error name does not exist on adwordsSetting */}
               {entity.name ?? entity.__typename}
             </span>
           </h1>
